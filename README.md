@@ -1,4 +1,4 @@
-# VisMath
+# VisMath ✏️
 
 VisMath (Visual Math) is an AI-powered interactive digital whiteboard that reads handwritten mathematical expressions, calculates solutions, and displays the results on the screen. It even plots graphs for more complex problems! Inspired by Apple's latest iPadOS 18 Math Notes calculator, VisMath leverages the power of GPT-4o to revolutionize math problem-solving.
 
