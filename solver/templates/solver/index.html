@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisMath Whiteboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/antd/4.16.13/antd.min.css">
+    <style>
+        @font-face {
+            font-family: 'NanumPenScript';
+            src: url('/static/solver/NanumPenScript-Regular.ttf') format('truetype');
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #f0f2f5;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            position: absolute;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        canvas {
+            border-radius: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            background-color: white;
+        }
+        .button-container {
+            position: absolute;
+            bottom: 80px;
+            display: flex;
+            gap: 20px;
+        }
+        .ant-btn {
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+        }
+        .clear-button {
+            background-color: red;
+            color: white;
+        }
+        .draw-button {
+            background-color: black;
+            color: white;
+        }
+        .eraser-button {
+            background-color: rgb(109, 214, 255);
+            color: black;
+        }
+        .ant-btn img {
+            width: 30px;
+            height: 30px;
+            filter: invert(1);
+        }
+        .eraser-button img {
+            filter: invert(0);
+        }
+    </style>
+    {% csrf_token %}
+    <meta name="csrf-token" content="{{ csrf_token }}">
+</head>
+<body>
+    <div class="container">
+        <canvas id="whiteboard" width="1200" height="800"></canvas>
+        <div class="button-container">
+            <button id="clear-button" class="ant-btn clear-button"><img src="/static/clear_icon.png" alt="Clear"></button>
+            <button id="eraser-button" class="ant-btn eraser-button"><img src="/static/eraser_icon.png" alt="Eraser"></button>
+            <button id="pen-button" class="ant-btn draw-button"><img src="/static/draw_icon.png" alt="Pen"></button>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/antd/4.16.13/antd.min.js"></script>
+    <script>
+        const canvas = document.getElementById('whiteboard');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const clearButton = document.getElementById('clear-button');
+        const eraserButton = document.getElementById('eraser-button');
+        const penButton = document.getElementById('pen-button');
+        let drawing = false;
+        let usingEraser = false;
+        let drawTimeout = null;
+        let processed = false;
+        let lastX = 0;
+        let lastY = 0;
+        let overallMinY = canvas.height;
+        let overallMaxY = 0;
+        let overallMinX = canvas.width;
+        let overallMaxX = 0;
+
+        function getCsrfToken() {
+            return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        }
+
+        function startDrawing(e) {
+            if (processed) return;
+            drawing = true;
+            ctx.beginPath();
+            ctx.moveTo(e.offsetX, e.offsetY);
+            lastX = e.offsetX;
+            lastY = e.offsetY;
+            overallMinY = Math.min(overallMinY, e.offsetY);
+            overallMaxY = Math.max(overallMaxY, e.offsetY);
+            overallMinX = Math.min(overallMinX, e.offsetX);
+            overallMaxX = Math.max(overallMaxX, e.offsetX);
+        }
+
+        function draw(e) {
+            if (!drawing || processed) return;
+            if (usingEraser) {
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.arc(e.offsetX, e.offsetY, 8, 0, Math.PI * 2, false);
+                ctx.fill();
+            } else {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.lineTo(e.offsetX, e.offsetY);
+                ctx.stroke();
+            }
+            lastX = e.offsetX;
+            lastY = e.offsetY;
+            overallMinY = Math.min(overallMinY, e.offsetY);
+            overallMaxY = Math.max(overallMaxY, e.offsetY);
+            overallMinX = Math.min(overallMinX, e.offsetX);
+            overallMaxX = Math.max(overallMaxX, e.offsetX);
+        }
+
+        function stopDrawing() {
+            if (processed) return;
+            drawing = false;
+            ctx.closePath();
+
+            // Set a timeout to capture the canvas after 2 seconds of inactivity
+            if (drawTimeout) {
+                clearTimeout(drawTimeout);
+            }
+            drawTimeout = setTimeout(captureCanvas, 2000);
+        }
+
+        function captureCanvas() {
+            if (processed) return;
+
+            // Create an offscreen canvas to capture the white background
+            const offscreenCanvas = document.createElement('canvas');
+            const offscreenCtx = offscreenCanvas.getContext('2d');
+            offscreenCanvas.width = canvas.width;
+            offscreenCanvas.height = canvas.height;
+
+            // Fill the offscreen canvas with white
+            offscreenCtx.fillStyle = 'white';
+            offscreenCtx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+
+            // Draw the original canvas onto the offscreen canvas
+            offscreenCtx.drawImage(canvas, 0, 0);
+
+            // Get the data URL of the offscreen canvas
+            const imageDataURL = offscreenCanvas.toDataURL('image/png');
+            const base64Image = imageDataURL.split(',')[1];
+
+            console.log("Captured Canvas Image");
+
+            fetch('/solve/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()  // Include CSRF token in the header
+                },
+                body: JSON.stringify({ image: base64Image })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error("Error from server:", data.error);
+                } else {
+                    console.log("Response from server:", data);
+                    drawSolution(data);
+                    processed = true;
+                }
+            })
+            .catch(error => {
+                console.error("Error making request:", error);
+            });
+        }
+
+        function drawSolution(data) {
+            const { equation, category, graphable, steps, answer } = data;
+
+            // Calculate the height of the drawing
+            const drawingHeight = overallMaxY - overallMinY;
+            const fontSize = drawingHeight * 1.5;  // Match the font size to 1.5 times the height of the overall drawing
+            const yCenter = overallMinY + drawingHeight / 2;
+
+            ctx.font = `${fontSize}px NanumPenScript`;
+            ctx.fillStyle = 'black';
+
+            // Determine placement based on the last drawn coordinates
+            let x = lastX + 10;  // Start 10 pixels to the right of the last drawn point
+            let y = yCenter + 50;  // Align with the y-center of the drawing and add 50px lower
+
+            // Ensure the text doesn't get cropped
+            if (x + ctx.measureText(answer).width > canvas.width) {
+                x = canvas.width - ctx.measureText(answer).width - 10;
+            }
+            if (y + fontSize > canvas.height) {
+                y = canvas.height - fontSize - 10;
+            }
+
+            if (category === 'addition' || category === 'subtraction' || category === 'multiplication' || category === 'division') {
+                // Place the answer next to the equation
+                ctx.fillText(answer, x, y);
+            } else {
+                // Draw the steps and answer below the equation
+                x = overallMinX;  // Start at the left side
+                y = overallMaxY + fontSize + 20;  // Start drawing below the overall drawing
+
+                steps.forEach(step => {
+                    if (y + fontSize > canvas.height) {
+                        // Move to next line if the text exceeds the canvas height
+                        y = overallMaxY + fontSize + 20;
+                        x += ctx.measureText(step).width + 20;  // Move to the right for new column
+                    }
+                    ctx.fillText(step, x, y);
+                    y += fontSize + 5;
+                });
+                ctx.fillText(answer, x, y);
+            }
+        }
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Refill with white background
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            processed = false;
+            overallMinY = canvas.height;
+            overallMaxY = 0;
+            overallMinX = canvas.width;
+            overallMaxX = 0;
+        }
+
+        function toggleEraser() {
+            usingEraser = !usingEraser;
+        }
+
+        // Initialize canvas settings
+        function initializeCanvas() {
+            ctx.lineCap = 'round';  // Set the line cap to round
+            ctx.lineJoin = 'round';  // Set the line join to round
+            ctx.lineWidth = 5;  // Set a default line width
+            ctx.strokeStyle = 'black';  // Set a default stroke color
+
+            // Fill the canvas with white on initialization
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+
+        clearButton.addEventListener('click', clearCanvas);
+        eraserButton.addEventListener('click', toggleEraser);
+        penButton.addEventListener('click', () => {
+            usingEraser = false;
+        });
+
+        // Initialize canvas settings on load
+        initializeCanvas();
+    </script>
+</body>
+</html>
