@@ -53,9 +53,9 @@ VisMath (Visual Math) is an AI-powered interactive digital whiteboard that reads
 
 ## Usage
 
-- **Draw**: Use the pen tool to draw equations on the whiteboard.
-- **Erase**: Use the eraser tool to erase parts of the drawing.
-- **Clear**: Use the clear button to clear the entire whiteboard.
+- **Draw**✍️: Use the pen tool to draw equations on the whiteboard.
+- **Erase**🧹: Use the eraser tool to erase parts of the drawing.
+- **Clear**🗑️: Use the clear button to clear the entire whiteboard.
 
 ## Contributing
 
@@ -67,9 +67,9 @@ This project is licensed under the MIT License.
 
 ## Acknowledgements
 
-- Inspired by Apple's iPadOS 18 Math Notes calculator.
-- Powered by OpenAI GPT-4o.
-
+- Inspired by [Apple's iPadOS 18](https://www.apple.com/ipados/ipados-18-preview/) Math Notes calculator.
+- Powered by [OpenAI GPT-4o](https://openai.com/index/hello-gpt-4o/).
+  
 ## Contact
 
 For any questions or suggestions, please open an issue or contact me at mutaqin.aryawjya@gmail.com.
